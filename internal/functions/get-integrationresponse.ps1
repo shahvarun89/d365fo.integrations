@@ -1,37 +1,50 @@
 
-function Get-IntegrationResponse ($WebRequest) {
+function Get-IntegrationResponse {
+    param(
+        [Parameter(Mandatory = $true, Position = 1)]
+        [System.Net.WebRequest]$WebRequest,
+        [Parameter(Mandatory = $true, Position = 2)]
+        [System.Net.HttpStatusCode]$ExpectedResult,
+        [Parameter(Mandatory = $false, Position = 3)]
+        [Switch]$GetContent
+        
+    )
 
     $integrationResponse = $null;
-
+    $url = $null
+    
     try {
-
+        $url = $WebRequest.RequestURI.AbsoluteUri    
         $response = $WebRequest.GetResponse()
     }
     catch {
-        $url = $WebRequest.RequestURI.AbsoluteUri
-        write-Error $_.Exception.Message
-        Write-Error $_.Exception
-        write-Error $url
-
-        throw
+        
+        Write-PSFMessage -Level Critical -Message "Request failed $url"  -Exception $_.Exception
+        Stop-PSFFunction -StepsUpward 1 -Message "Stopping"
+        return 
         
     }
-    if ($response.StatusCode -eq [System.Net.HttpStatusCode]::Ok) {
+    if ($response.StatusCode -eq $ExpectedResult) {
 
-        $stream = $response.GetResponseStream()
+        Write-PSFMessage -Message "Request Ok $url" -Level Verbose
+        if ($GetContent -eq $true) {
+            $stream = $response.GetResponseStream()
     
-        $streamReader = New-Object System.IO.StreamReader($stream);
+            $streamReader = New-Object System.IO.StreamReader($stream);
         
-        $integrationResponse = $streamReader.ReadToEnd()
-        $streamReader.Close();
-    
+            $integrationResponse = $streamReader.ReadToEnd()
+            $streamReader.Close();
+        }
+        else {
+
+            "Request Ok"
+        }
     }
     else {
         $statusDescription = $response.StatusDescription
-        throw "Https status code : $statusDescription" 
+        Write-PSFMessage -Message "Request failed $url, Status : $statusDescription" -Level Critical
+        Stop-PSFFunction -StepsUpward 1 -Message "Stopping"
     }
 
     $integrationResponse
-    
-
 }
